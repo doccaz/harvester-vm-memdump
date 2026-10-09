@@ -26,7 +26,7 @@ The lab doesn't enable it (error: `vm export feature gate not enabled`).
 
 ## Options
 `-n NS`, `-o DIR`, `-s STORAGECLASS`, `-z SIZE`, `-k/--keep`, `--kubeconfig FILE`
-(default `$KUBECONFIG`, else `~/Projetos/local-harvester.yaml`), `--secure` (verify TLS;
+(default `$KUBECONFIG`, else kubectl's default `~/.kube/config`), `--secure` (verify TLS;
 default skips it for the self-signed lab cert).
 
 Requires `kubectl`, `virtctl` (>= 1.7), `gzip`. Tested on Linux (Ubuntu 24.04) and Windows Server 2022 guests; see ANALYZING.md.

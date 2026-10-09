@@ -16,14 +16,14 @@ Options:
   -s, --storage-class SC storage class for the dump PVC (default: cluster default)
   -z, --size SIZE        PVC size, e.g. 16Gi (default: 2x guest memory + 2Gi)
   -k, --keep             keep the PVC/association after download
-      --kubeconfig FILE  kubeconfig (default: \$KUBECONFIG, else ~/Projetos/local-harvester.yaml)
+      --kubeconfig FILE  kubeconfig (default: \$KUBECONFIG, else kubectl's default ~/.kube/config)
       --secure           verify the API server TLS cert (default: skip, lab uses self-signed)
   -h, --help
 USAGE
 }
 
 NS=default OUT=. SC="" SIZE="" KEEP=0 INSECURE=1
-KUBECONFIG="${KUBECONFIG:-$HOME/Projetos/local-harvester.yaml}"
+KUBECONFIG="${KUBECONFIG:-}"  # empty: kubectl/virtctl use their own default (~/.kube/config)
 VM=""
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -40,7 +40,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 [[ -n $VM ]] || { usage >&2; exit 2; }
-export KUBECONFIG
+[[ -z $KUBECONFIG ]] || export KUBECONFIG
 
 K=(kubectl -n "$NS")
 (( INSECURE )) && K=(kubectl --insecure-skip-tls-verify -n "$NS")
