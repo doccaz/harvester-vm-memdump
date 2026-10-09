@@ -7,6 +7,7 @@ One command to take a memory dump of a running Harvester (KubeVirt) VM and downl
 ```
 
 Output: `<outdir>/<vm>-<pvc>-<timestamp>.memory.dump.gz` (a gzipped QEMU memory-only ELF core).
+To open the dump afterwards, see [ANALYZING.md](ANALYZING.md).
 
 ## What it does
 1. Checks the VM is running and finds its node.
@@ -47,7 +48,9 @@ If your Harvester/KubeVirt has the gate enabled, plain `virtctl memory-dump get 
 - `kubectl`, `virtctl` (>= 1.7) and `gzip` on the machine running the script.
 - Tested on **Harvester 1.8.2** with Linux (Ubuntu 24.04) and Windows Server 2022 guests.
 
-## Analyzing (full, tested guide: ANALYZING.md)
+## Analyzing
+Full, tested guide with screenshots: **[ANALYZING.md](ANALYZING.md)**.
+
 - **Linux guests:** `crash <vmlinux-with-debuginfo> <dump>.memory.dump`. It needs the guest's exact
   kernel debuginfo (found from the `Linux version` banner in the dump). Tested with `crash` 9.0.2 on
   Ubuntu 24.04; no extra flags needed.
@@ -69,9 +72,9 @@ Not tested: `--keep`, reusing an already-associated PVC through the script, non-
 
 ## Layout
 - `vm-memdump.sh`: the script.
-- `ANALYZING.md`: how to open Linux and Windows dumps (with screenshots from `docs/images/`).
+- [`ANALYZING.md`](ANALYZING.md): how to open Linux and Windows dumps (with screenshots from `docs/images/`).
 - `symbols/`, `dumps/`, `.venv/`: local working directories (kernel `vmlinux`, dumps, Volatility venv).
-  They are large and git-ignored; see ANALYZING.md for how to recreate them.
+  They are large and git-ignored; see [ANALYZING.md](ANALYZING.md) for how to recreate them.
 
 ## Caveats
 - The VM must be running. The dump may briefly stall the guest.
