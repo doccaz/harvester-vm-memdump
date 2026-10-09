@@ -21,15 +21,31 @@ Output: `<outdir>/<vm>-<pvc>-<timestamp>.memory.dump.gz` (a gzipped QEMU memory-
 If the VM already has a dump PVC associated, that PVC is reused and never deleted.
 
 ## Why not `virtctl memory-dump get --output`?
-It goes through `VirtualMachineExport`, which needs the KubeVirt `VMExport` feature gate.
-The lab doesn't enable it (error: `vm export feature gate not enabled`).
+That flag downloads the dump through a `VirtualMachineExport`, which requires the KubeVirt
+`VMExport` feature gate. **The feature gate is not enabled in Harvester 1.8.2**, the version this
+script was tested on, and `virtctl` fails with `vm export feature gate not enabled`.
+So the script dumps to a PVC and streams the file out through a short-lived helper Pod instead.
+If your Harvester/KubeVirt has the gate enabled, plain `virtctl memory-dump get --output` may be simpler.
 
-## Options
-`-n NS`, `-o DIR`, `-s STORAGECLASS`, `-z SIZE`, `-k/--keep`, `--kubeconfig FILE`
-(default `$KUBECONFIG`, else kubectl's default `~/.kube/config`), `--secure` (verify TLS;
-default skips it for the self-signed lab cert).
+## Usage
+```bash
+./vm-memdump.sh [options] <vm-name>
+```
 
-Requires `kubectl`, `virtctl` (>= 1.7), `gzip`. Tested on Linux (Ubuntu 24.04) and Windows Server 2022 guests; see ANALYZING.md.
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-n`, `--namespace NS` | Namespace of the VM | `default` |
+| `-o`, `--output-dir DIR` | Where to save the dump | `.` |
+| `-s`, `--storage-class SC` | Storage class for the dump PVC | cluster default |
+| `-z`, `--size SIZE` | PVC size, e.g. `16Gi` | 2x guest memory + 2Gi |
+| `-k`, `--keep` | Keep the PVC and its association after download | off (cleaned up) |
+| `--kubeconfig FILE` | Kubeconfig to use | `$KUBECONFIG`, else `~/.kube/config` |
+| `--secure` | Verify the API server TLS certificate | off (lab uses a self-signed cert) |
+| `-h`, `--help` | Show usage | |
+
+## Requirements
+- `kubectl`, `virtctl` (>= 1.7) and `gzip` on the machine running the script.
+- Tested on **Harvester 1.8.2** with Linux (Ubuntu 24.04) and Windows Server 2022 guests.
 
 ## Analyzing (full, tested guide: ANALYZING.md)
 - **Linux guests:** `crash <vmlinux-with-debuginfo> <dump>.memory.dump`. It needs the guest's exact
@@ -42,6 +58,8 @@ Requires `kubectl`, `virtctl` (>= 1.7), `gzip`. Tested on Linux (Ubuntu 24.04) a
 The dump has memory only: no disk, and no vCPU state beyond QEMU's NOTE segment.
 
 ## Tested
+All on Harvester 1.8.2.
+
 | Guest | RAM | Dump | PVC | Analysis |
 |-------|-----|------|-----|----------|
 | Ubuntu 24.04 (`labs/ubuntu-2404`) | 1 GiB | 182 MB gz | 4Gi | `crash`: `sys`, `log`, `bt`, `ps`, `kmem -i` |

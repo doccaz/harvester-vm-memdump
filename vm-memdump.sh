@@ -2,7 +2,7 @@
 # Dump a running Harvester/KubeVirt VM's memory and download it as .memory.dump.gz.
 #
 # Why not `virtctl memory-dump get --output`? It needs the KubeVirt VMExport
-# feature gate, which the lab doesn't enable. Instead we dump to a PVC and
+# feature gate, which Harvester 1.8.2 (the tested version) doesn't enable. Instead we dump to a PVC and
 # stream the file out through a short-lived helper Pod on the VM's node.
 set -euo pipefail
 
