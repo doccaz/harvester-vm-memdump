@@ -1,0 +1,8 @@
+# large local artifacts (see ANALYZING.md to recreate)
+dumps/
+symbols/
+.venv/
+*.memory.dump
+*.memory.dump.gz
+*.part
+vm-memdump.txt
