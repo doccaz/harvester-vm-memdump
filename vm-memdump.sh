@@ -70,13 +70,15 @@ if [[ $FORMAT == win-dmp ]]; then
   DEST="$OUT/$VM-$(date +%Y%m%d-%H%M%S).win-dmp.gz"
   trap '"${K[@]}" exec "$LPOD" -c compute -- rm -f "$REMOTE" >/dev/null 2>&1 || true' EXIT
   log "virsh dump --memory-only --format win-dmp in $LPOD (needs ~guest RAM free in the pod's /var/run/kubevirt)"
-  # Newer virt-launchers run an unprivileged libvirt on a unix socket; try plain virsh first.
+  # Plain virsh connects in current virt-launchers; only fall back to other URIs on a connection error.
   ok=0
   for uri in "" "qemu+unix:///session?socket=/var/run/kubevirt-private/libvirt/virtqemud-sock" "qemu:///system"; do
-    if "${K[@]}" exec "$LPOD" -c compute -- virsh ${uri:+-c "$uri"} dump "$DOM" "$REMOTE" \
-        --memory-only --format win-dmp >&2; then ok=1; break; fi
+    if OUTP=$("${K[@]}" exec "$LPOD" -c compute -- virsh ${uri:+-c "$uri"} dump "$DOM" "$REMOTE" \
+        --memory-only --format win-dmp 2>&1); then ok=1; break; fi
+    echo "$OUTP" >&2
+    [[ $OUTP == *"failed to connect to the hypervisor"* ]] || break
   done
-  (( ok )) || { echo "virsh dump failed. win-dmp needs a Windows x64 guest with the QEMU vmcoreinfo device and the fw_cfg guest driver (virtio-win)." >&2; exit 1; }
+  (( ok )) || { echo "virsh dump failed. win-dmp needs a Windows x64 guest with the QEMU vmcoreinfo device (not exposed by KubeVirt by default) and the fw_cfg guest driver (virtio-win)." >&2; exit 1; }
   log "downloading to $DEST"
   if ! "${K[@]}" exec "$LPOD" -c compute -- gzip -c "$REMOTE" > "$DEST.part"; then
     rm -f "$DEST.part"; echo "download failed" >&2; exit 1

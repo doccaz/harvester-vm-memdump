@@ -45,7 +45,7 @@ If your Harvester/KubeVirt has the gate enabled, plain `virtctl memory-dump get 
 | `--secure` | Verify the API server TLS certificate | off (lab uses a self-signed cert) |
 | `-h`, `--help` | Show usage | |
 
-## `--format win-dmp` (experimental, untested)
+## `--format win-dmp` (experimental, does not work on stock Harvester)
 KubeVirt's memory-dump API hardcodes the ELF/raw format, so WinDbg can't open its output. With
 `--format win-dmp` the script skips that API and runs
 `virsh dump --memory-only --format win-dmp` inside the `virt-launcher` pod, then streams the file out
@@ -55,7 +55,9 @@ as `<vm>-<timestamp>.win-dmp.gz` (header `PAGEDU64`, opens in WinDbg).
   (virtio-win) to build the header; otherwise `virsh dump` fails.
 - Writes the dump to the pod's `/var/run/kubevirt` (needs roughly guest-RAM free on the node) and
   removes it afterwards. No PVC or helper Pod is used.
-- Not run against a cluster yet; the libvirt connection URI and paths are best guesses.
+- Tried on Harvester 1.8.2 with Windows Server 2022: plain `virsh` connects in the `compute` container, but
+  QEMU fails with `win-dump: invalid vmcoreinfo note size`. The VM's libvirt domain has no `vmcoreinfo`
+  device, and KubeVirt does not add one, so **this does not work on stock Harvester** today.
 
 ## Requirements
 - `kubectl`, `virtctl` (>= 1.7) and `gzip` on the machine running the script.
