@@ -57,6 +57,9 @@ Full, tested guide with screenshots: **[ANALYZING.md](ANALYZING.md)**.
 - **Windows guests:** Volatility 3 (`pip install volatility3` in a venv) reads the ELF core directly
   and downloads the Windows symbols itself. Tested on Windows Server 2022 with `windows.info`,
   `pslist`, `cmdline`, `netscan`.
+- **WinDbg:** it does not recognize this file. The dump is a QEMU ELF core, not a Windows
+  `MEMORY.DMP` (`PAGEDU64` header). For BSOD analysis in WinDbg, have the guest write its own
+  complete memory dump. Not tested here; see [ANALYZING.md](ANALYZING.md).
 
 The dump has memory only: no disk, and no vCPU state beyond QEMU's NOTE segment.
 
