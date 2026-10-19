@@ -123,5 +123,7 @@ Notes:
   `PsLoadedModuleList` as the header, kernel symbols and the unloaded module list load. The
   `Unknown exception - code 00000000` line is expected: the header's BugCheckCode is `0xdeaddead`
   because the VM did not crash, so use it for live-state inspection, not BSOD analysis.
-  Not yet confirmed: `!process 0 0`, `lm` and `!analyze -v` output.
+  `lm` lists the kernel modules and `!process 0 0` walks the process list (System with DirBase `001aa000`,
+  smss, csrss, sppsvc, ...). Not tried: `!analyze -v`. `.reload /f` may print `Unable to load image` for
+  drivers that are not on the analysis machine's disk; that is harmless.
 - For a real BSOD, configure the guest to write a complete memory dump (`MEMORY.DMP`) instead.
