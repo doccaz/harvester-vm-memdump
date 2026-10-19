@@ -40,24 +40,36 @@ If your Harvester/KubeVirt has the gate enabled, plain `virtctl memory-dump get 
 | `-s`, `--storage-class SC` | Storage class for the dump PVC | cluster default |
 | `-z`, `--size SIZE` | PVC size, e.g. `16Gi` | 2x guest memory + 2Gi |
 | `-k`, `--keep` | Keep the PVC and its association after download | off (cleaned up) |
-| `--format FMT` | `elf` (via KubeVirt) or `win-dmp` (WinDbg `MEMORY.DMP`, experimental, see below) | `elf` |
+| `--format FMT` | `elf` (via KubeVirt) or `win-dmp` (experimental, does not work on stock Harvester; use `elf2windmp.py` instead, see below) | `elf` |
 | `--kubeconfig FILE` | Kubeconfig to use | `$KUBECONFIG`, else `~/.kube/config` |
 | `--secure` | Verify the API server TLS certificate | off (lab uses a self-signed cert) |
 | `-h`, `--help` | Show usage | |
 
-## `--format win-dmp` (experimental, does not work on stock Harvester)
-KubeVirt's memory-dump API hardcodes the ELF/raw format, so WinDbg can't open its output. With
-`--format win-dmp` the script skips that API and runs
-`virsh dump --memory-only --format win-dmp` inside the `virt-launcher` pod, then streams the file out
-as `<vm>-<timestamp>.win-dmp.gz` (header `PAGEDU64`, opens in WinDbg).
+## Opening a Windows dump in WinDbg: `elf2windmp.py`
+WinDbg does not open the QEMU ELF core. `elf2windmp.py` converts it to a Windows `MEMORY.DMP`
+(`PAGEDU64`):
 
-- Windows x64 guests only. QEMU needs the `vmcoreinfo` device and the guest's fw_cfg driver
-  (virtio-win) to build the header; otherwise `virsh dump` fails.
-- Writes the dump to the pod's `/var/run/kubevirt` (needs roughly guest-RAM free on the node) and
-  removes it afterwards. No PVC or helper Pod is used.
-- Tried on Harvester 1.8.2 with Windows Server 2022: plain `virsh` connects in the `compute` container, but
-  QEMU fails with `win-dump: invalid vmcoreinfo note size`. The VM's libvirt domain has no `vmcoreinfo`
-  device, and KubeVirt does not add one, so **this does not work on stock Harvester** today.
+```bash
+python3 -m venv .venv && .venv/bin/pip install memprocfs
+.venv/bin/python elf2windmp.py dumps/<dump>.memory.dump.gz out.dmp   # ~30-40 s for 6 GiB
+```
+
+It writes the ELF LOAD segments to a sparse raw image and has MemProcFS generate the crash dump. That
+decodes the `KdDebuggerDataBlock` (its `KDBG` tag is encoded in raw memory) and fills the header.
+
+- Windows x64 guests only. Needs temp space for the raw image (about guest RAM) plus the output.
+- `out.dmp` is sparse: it spans the physical address range, so the apparent size exceeds guest RAM (7.75 GiB for a
+  5.75 GiB guest, 8 GiB for 6 GiB) but far less on disk. Copy it with `cp --sparse=always` or `rsync -S`.
+- The header's bugcheck code is `0xdeaddead` (the VM did not crash): good for live-state inspection,
+  not for BSOD analysis. For a real BSOD, have the guest write its own complete `MEMORY.DMP`.
+- Verified on two VMs, see [Tested](#tested) and [ANALYZING.md](ANALYZING.md).
+
+### `--format win-dmp` (experimental, does not work on stock Harvester)
+KubeVirt's memory-dump API hardcodes the ELF/raw format, so `vm-memdump.sh --format win-dmp` skips it
+and runs `virsh dump --memory-only --format win-dmp` inside the `virt-launcher` pod, then streams the
+file out as `<vm>-<timestamp>.win-dmp.gz`. On Harvester 1.8.2 plain `virsh` connects, but QEMU fails with
+`win-dump: invalid vmcoreinfo note size`: the VM's libvirt domain has no `vmcoreinfo` device and KubeVirt
+does not add one. (The guest already has the virtio-win `fwcfg` driver.) Use `elf2windmp.py` instead.
 
 ## Requirements
 - `kubectl`, `virtctl` (>= 1.7) and `gzip` on the machine running the script.
@@ -72,10 +84,9 @@ Full, tested guide with screenshots: **[ANALYZING.md](ANALYZING.md)**.
 - **Windows guests:** Volatility 3 (`pip install volatility3` in a venv) reads the ELF core directly
   and downloads the Windows symbols itself. Tested on Windows Server 2022 with `windows.info`,
   `pslist`, `cmdline`, `netscan`.
-- **WinDbg:** it does not open the ELF core. Convert it first with `elf2windmp.py`
-  (`pip install memprocfs`): `./elf2windmp.py dumps/<dump>.memory.dump.gz out.dmp`. Windows x64 guests
-  only. Verified: Volatility 3 reads it, and WinDbg 10.0.22621.755 opens it ("Kernel Complete Dump File",
-  kernel symbols load, `lm` and `!process 0 0` work). See [ANALYZING.md](ANALYZING.md).
+- **WinDbg:** convert first with `elf2windmp.py` (see above). WinDbg 10.0.22621.755 opens the result
+  ("Kernel Complete Dump File"), kernel symbols load, `lm` and `!process 0 0` work. See
+  [ANALYZING.md](ANALYZING.md).
 
 The dump has memory only: no disk, and no vCPU state beyond QEMU's NOTE segment.
 
@@ -85,13 +96,14 @@ All on Harvester 1.8.2.
 | Guest | RAM | Dump | PVC | Analysis |
 |-------|-----|------|-----|----------|
 | Ubuntu 24.04 (`labs/ubuntu-2404`) | 1 GiB | 182 MB gz | 4Gi | `crash`: `sys`, `log`, `bt`, `ps`, `kmem -i` |
-| Windows Server 2022 (`labs/windows-server-2022`) | 6 GiB | 551 MB gz | 14Gi | Volatility 3 |
+| Windows Server 2022 (`labs/windows-server-2022`) | 6 GiB | 551 MB gz | 14Gi | Volatility 3; `elf2windmp.py` + WinDbg (`lm`, `!process 0 0`) |
+| Windows Server 2022 (`labs/winsrv2022`, running) | 5.75 GiB | 3.3 GB gz | 14Gi | Volatility 3 (`windows.info`, `pslist`); `elf2windmp.py` header and KDBG checked, not opened in WinDbg |
 
-Not tested: `--keep`, reusing an already-associated PVC through the script, non-default storage classes.
+Not tested: `!analyze -v` on a converted dump, Windows guests other than Server 2022 build 20348, `--keep`, reusing an already-associated PVC through the script, non-default storage classes.
 
 ## Layout
 - `vm-memdump.sh`: the script.
-- `elf2windmp.py`: converts the ELF core to a Windows `MEMORY.DMP` for WinDbg.
+- `elf2windmp.py`: converts the ELF core to a Windows `MEMORY.DMP` for WinDbg (needs `memprocfs`).
 - [`ANALYZING.md`](ANALYZING.md): how to open Linux and Windows dumps (with screenshots from `docs/images/`).
 - `symbols/`, `dumps/`, `.venv/`: local working directories (kernel `vmlinux`, dumps, Volatility venv).
   They are large and git-ignored; see [ANALYZING.md](ANALYZING.md) for how to recreate them.

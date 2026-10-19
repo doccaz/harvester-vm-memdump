@@ -109,21 +109,40 @@ Useful plugins:
 Notes:
 - Timestamps in `pslist`/`netscan` can look inconsistent (process start times of 11:02 UTC vs a
   system time of 04:04 UTC). That is guest clock/time-zone skew, not a dump problem.
-- **WinDbg:** it cannot open the ELF core directly (from documentation, not tested). Convert it:
-  `pip install memprocfs && ./elf2windmp.py dumps/<dump>.memory.dump.gz out.dmp` (~40 s for 6 GiB).
-  The script writes the ELF LOAD segments to a sparse raw image and has MemProcFS generate the crash
-  dump, which decodes the `KdDebuggerDataBlock` (its `KDBG` tag is encoded in the raw memory) and fills
-  the header. `out.dmp` is sparse: about 8 GiB apparent size for this 6 GiB guest, because it spans the
-  whole physical address range.
-  Verified on `labs/windows-server-2022`: header `PAGEDU64`, build 20348, 4 CPUs, DTB `0x1aa000`;
-  Volatility 3 `windows.info` reads it as `WindowsCrashDump64Layer` with the same kernel base and build
-  as the ELF run.
-  **WinDbg:** WinDbg 10.0.22621.755 (x64) opens the converted file: "Kernel Complete Dump File: Full
-  address space is available", Windows 10 Kernel Version 20348 MP (4 procs), the same kernel base and
-  `PsLoadedModuleList` as the header, kernel symbols and the unloaded module list load. The
-  `Unknown exception - code 00000000` line is expected: the header's BugCheckCode is `0xdeaddead`
-  because the VM did not crash, so use it for live-state inspection, not BSOD analysis.
-  `lm` lists the kernel modules and `!process 0 0` walks the process list (System with DirBase `001aa000`,
-  smss, csrss, sppsvc, ...). Not tried: `!analyze -v`. `.reload /f` may print `Unable to load image` for
-  drivers that are not on the analysis machine's disk; that is harmless.
+- For WinDbg, convert the dump first: see [Opening the dump in WinDbg](#opening-the-dump-in-windbg).
 - For a real BSOD, configure the guest to write a complete memory dump (`MEMORY.DMP`) instead.
+
+### Opening the dump in WinDbg
+
+WinDbg does not open the QEMU ELF core; it expects a Windows `MEMORY.DMP`. Convert it:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install memprocfs
+.venv/bin/python elf2windmp.py dumps/<dump>.memory.dump.gz out.dmp
+```
+
+`elf2windmp.py` writes the ELF LOAD segments to a sparse raw image and has MemProcFS generate the crash
+dump, which decodes the `KdDebuggerDataBlock` (its `KDBG` tag is encoded in raw memory) and fills the
+`DUMP_HEADER64`. It takes 30-40 s for ~6 GiB. `out.dmp` is sparse: 7.75-8 GiB apparent size for these
+5.75-6 GiB guests (it spans the physical address range, including the gap below 4 GiB), but far less on
+disk. Copy it with `cp --sparse=always` or `rsync -S`; `scp` and HTTP send the full apparent size.
+
+Verified (2026-10-19):
+
+| VM | Checks | Result |
+|----|--------|--------|
+| `labs/windows-server-2022` (idle, 6 GiB) | header, Volatility 3, MemProcFS, **WinDbg 10.0.22621.755** | header `PAGEDU64`, build 20348, 4 CPUs, DTB `0x1aa000`; Volatility reads it as `WindowsCrashDump64Layer` with the same kernel base and build as the ELF run; WinDbg: "Kernel Complete Dump File: Full address space is available", kernel symbols and unloaded module list load, `lm` lists modules, `!process 0 0` walks the process list (System DirBase `001aa000`, smss, csrss, sppsvc, ...) |
+| `labs/winsrv2022` (running, 5.75 GiB) | header, Volatility 3, MemProcFS | `PAGEDU64`, build 20348, 4 CPUs, DTB `0x1aa000`, `KDBG` tag decoded; `windows.info` and `windows.pslist` work (System, smss, csrss, wininit, services, lsass, svchost, ...). Not opened in WinDbg. |
+
+Notes:
+- The header's BugCheckCode is `0xdeaddead` because the VM did not crash, so WinDbg prints
+  `Unknown exception - code 00000000`. Use the file for live-state inspection, not BSOD analysis; for a
+  real BSOD configure the guest to write a complete `MEMORY.DMP`.
+- `.reload /f` prints `Unable to load image ...` for drivers (`pvvx*`, `virtio_serial`, `fwcfg`, ...) that are
+  not on the analysis machine's disk. That is harmless: the dump and symbols load fine.
+- WinDbg from the Microsoft Store/`.appinstaller` does not install on Windows Server 2022 build 20348
+  (`0x80073CF9` / `0x8007007F`). Use another machine, or the classic debuggers from the Windows SDK.
+  On Server Core there is no GUI; `kd.exe -z <dump>` works.
+- Not tried: `!analyze -v`, Windows guests other than Server 2022 build 20348.
+- `vm-memdump.sh --format win-dmp` (QEMU writing the Windows format itself) does not work on stock
+  Harvester: no `vmcoreinfo` device in the domain, see the README.
