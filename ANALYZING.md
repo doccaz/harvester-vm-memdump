@@ -109,8 +109,16 @@ Useful plugins:
 Notes:
 - Timestamps in `pslist`/`netscan` can look inconsistent (process start times of 11:02 UTC vs a
   system time of 04:04 UTC). That is guest clock/time-zone skew, not a dump problem.
-- For a Windows **bugcheck** (BSOD) analysis you would normally want WinDbg and a kernel
-  `MEMORY.DMP`. WinDbg cannot open this ELF core directly. This memory-only dump is good for
-  live-state forensics and hang triage with Volatility; for BSODs configure the guest to write a
-  complete memory dump (`MEMORY.DMP`) to its own disk instead. (WinDbg's lack of ELF support is
-  from documentation I know of, not something tested here.)
+- **WinDbg:** it cannot open the ELF core directly (from documentation, not tested). Convert it:
+  `pip install memprocfs && ./elf2windmp.py dumps/<dump>.memory.dump.gz out.dmp` (~40 s for 6 GiB).
+  The script writes the ELF LOAD segments to a sparse raw image and has MemProcFS generate the crash
+  dump, which decodes the `KdDebuggerDataBlock` (its `KDBG` tag is encoded in the raw memory) and fills
+  the header. `out.dmp` is sparse: about 8 GiB apparent size for this 6 GiB guest, because it spans the
+  whole physical address range.
+  Verified on `labs/windows-server-2022`: header `PAGEDU64`, build 20348, 4 CPUs, DTB `0x1aa000`;
+  Volatility 3 `windows.info` reads it as `WindowsCrashDump64Layer` with the same kernel base and build
+  as the ELF run.
+  **Not yet verified in WinDbg.** Please try `lm`, `!process 0 0`, `.reload /f`, `!analyze -v` and report
+  back. Expect no bugcheck context: the header's BugCheckCode is `0xdeaddead` because the VM did not crash,
+  so use it for live-state inspection, not BSOD analysis.
+- For a real BSOD, configure the guest to write a complete memory dump (`MEMORY.DMP`) instead.

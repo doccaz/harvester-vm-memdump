@@ -72,9 +72,10 @@ Full, tested guide with screenshots: **[ANALYZING.md](ANALYZING.md)**.
 - **Windows guests:** Volatility 3 (`pip install volatility3` in a venv) reads the ELF core directly
   and downloads the Windows symbols itself. Tested on Windows Server 2022 with `windows.info`,
   `pslist`, `cmdline`, `netscan`.
-- **WinDbg:** it does not recognize this file. The dump is a QEMU ELF core, not a Windows
-  `MEMORY.DMP` (`PAGEDU64` header). For BSOD analysis in WinDbg, have the guest write its own
-  complete memory dump. Not tested here; see [ANALYZING.md](ANALYZING.md).
+- **WinDbg:** it does not open the ELF core. Convert it first with `elf2windmp.py`
+  (`pip install memprocfs`): `./elf2windmp.py dumps/<dump>.memory.dump.gz out.dmp`. Windows x64 guests
+  only. The result is checked with Volatility 3 and MemProcFS but **not yet opened in WinDbg**; see
+  [ANALYZING.md](ANALYZING.md).
 
 The dump has memory only: no disk, and no vCPU state beyond QEMU's NOTE segment.
 
@@ -90,6 +91,7 @@ Not tested: `--keep`, reusing an already-associated PVC through the script, non-
 
 ## Layout
 - `vm-memdump.sh`: the script.
+- `elf2windmp.py`: converts the ELF core to a Windows `MEMORY.DMP` for WinDbg.
 - [`ANALYZING.md`](ANALYZING.md): how to open Linux and Windows dumps (with screenshots from `docs/images/`).
 - `symbols/`, `dumps/`, `.venv/`: local working directories (kernel `vmlinux`, dumps, Volatility venv).
   They are large and git-ignored; see [ANALYZING.md](ANALYZING.md) for how to recreate them.

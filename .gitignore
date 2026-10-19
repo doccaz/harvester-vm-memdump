@@ -6,3 +6,5 @@ symbols/
 *.memory.dump.gz
 *.part
 vm-memdump.txt
+*.dmp
+*.raw.tmp
