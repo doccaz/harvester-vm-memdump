@@ -40,9 +40,22 @@ If your Harvester/KubeVirt has the gate enabled, plain `virtctl memory-dump get 
 | `-s`, `--storage-class SC` | Storage class for the dump PVC | cluster default |
 | `-z`, `--size SIZE` | PVC size, e.g. `16Gi` | 2x guest memory + 2Gi |
 | `-k`, `--keep` | Keep the PVC and its association after download | off (cleaned up) |
+| `--format FMT` | `elf` (via KubeVirt) or `win-dmp` (WinDbg `MEMORY.DMP`, experimental, see below) | `elf` |
 | `--kubeconfig FILE` | Kubeconfig to use | `$KUBECONFIG`, else `~/.kube/config` |
 | `--secure` | Verify the API server TLS certificate | off (lab uses a self-signed cert) |
 | `-h`, `--help` | Show usage | |
+
+## `--format win-dmp` (experimental, untested)
+KubeVirt's memory-dump API hardcodes the ELF/raw format, so WinDbg can't open its output. With
+`--format win-dmp` the script skips that API and runs
+`virsh dump --memory-only --format win-dmp` inside the `virt-launcher` pod, then streams the file out
+as `<vm>-<timestamp>.win-dmp.gz` (header `PAGEDU64`, opens in WinDbg).
+
+- Windows x64 guests only. QEMU needs the `vmcoreinfo` device and the guest's fw_cfg driver
+  (virtio-win) to build the header; otherwise `virsh dump` fails.
+- Writes the dump to the pod's `/var/run/kubevirt` (needs roughly guest-RAM free on the node) and
+  removes it afterwards. No PVC or helper Pod is used.
+- Not run against a cluster yet; the libvirt connection URI and paths are best guesses.
 
 ## Requirements
 - `kubectl`, `virtctl` (>= 1.7) and `gzip` on the machine running the script.
