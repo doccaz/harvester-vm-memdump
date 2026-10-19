@@ -118,7 +118,10 @@ Notes:
   Verified on `labs/windows-server-2022`: header `PAGEDU64`, build 20348, 4 CPUs, DTB `0x1aa000`;
   Volatility 3 `windows.info` reads it as `WindowsCrashDump64Layer` with the same kernel base and build
   as the ELF run.
-  **Not yet verified in WinDbg.** Please try `lm`, `!process 0 0`, `.reload /f`, `!analyze -v` and report
-  back. Expect no bugcheck context: the header's BugCheckCode is `0xdeaddead` because the VM did not crash,
-  so use it for live-state inspection, not BSOD analysis.
+  **WinDbg:** WinDbg 10.0.22621.755 (x64) opens the converted file: "Kernel Complete Dump File: Full
+  address space is available", Windows 10 Kernel Version 20348 MP (4 procs), the same kernel base and
+  `PsLoadedModuleList` as the header, kernel symbols and the unloaded module list load. The
+  `Unknown exception - code 00000000` line is expected: the header's BugCheckCode is `0xdeaddead`
+  because the VM did not crash, so use it for live-state inspection, not BSOD analysis.
+  Not yet confirmed: `!process 0 0`, `lm` and `!analyze -v` output.
 - For a real BSOD, configure the guest to write a complete memory dump (`MEMORY.DMP`) instead.

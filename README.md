@@ -74,8 +74,8 @@ Full, tested guide with screenshots: **[ANALYZING.md](ANALYZING.md)**.
   `pslist`, `cmdline`, `netscan`.
 - **WinDbg:** it does not open the ELF core. Convert it first with `elf2windmp.py`
   (`pip install memprocfs`): `./elf2windmp.py dumps/<dump>.memory.dump.gz out.dmp`. Windows x64 guests
-  only. The result is checked with Volatility 3 and MemProcFS but **not yet opened in WinDbg**; see
-  [ANALYZING.md](ANALYZING.md).
+  only. Verified: Volatility 3 reads it, and WinDbg 10.0.22621.755 opens it ("Kernel Complete Dump File",
+  kernel symbols load). See [ANALYZING.md](ANALYZING.md).
 
 The dump has memory only: no disk, and no vCPU state beyond QEMU's NOTE segment.
 
