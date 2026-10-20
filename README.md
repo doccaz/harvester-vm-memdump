@@ -54,10 +54,17 @@ python3 -m venv .venv && .venv/bin/pip install memprocfs
 .venv/bin/python elf2windmp.py dumps/<dump>.memory.dump.gz out.dmp   # ~30-40 s for 6 GiB
 ```
 
-Or let the dump script do it in one go: `PYTHON=.venv/bin/python ./vm-memdump.sh --windbg -n labs -o ./dumps <vm>`
-writes `<dump>.memory.dump.gz` and `<dump>.win.dmp` (the script prints both paths, `.win.dmp` last).
+Or let the dump script do the dump and the conversion in one go:
 
-It writes the ELF LOAD segments to a sparse raw image and has MemProcFS generate the crash dump. That
+```bash
+python3 -m venv .venv && .venv/bin/pip install memprocfs   # once
+PYTHON=.venv/bin/python ./vm-memdump.sh --windbg -n labs -o ./dumps <vm>
+```
+
+This writes `<dump>.memory.dump.gz` and `<dump>.win.dmp` into `./dumps`. The script prints both paths,
+`.win.dmp` last.
+
+Either way, `elf2windmp.py` writes the ELF LOAD segments to a sparse raw image and has MemProcFS generate the crash dump. That
 decodes the `KdDebuggerDataBlock` (its `KDBG` tag is encoded in raw memory) and fills the header.
 
 - Windows x64 guests only. Needs temp space for the raw image (about guest RAM) plus the output.
