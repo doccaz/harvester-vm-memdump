@@ -16,13 +16,15 @@ Options:
   -s, --storage-class SC storage class for the dump PVC (default: cluster default)
   -z, --size SIZE        PVC size, e.g. 16Gi (default: 2x guest memory + 2Gi)
   -k, --keep             keep the PVC/association after download
+      --windbg           also convert the dump to a WinDbg MEMORY.DMP (Windows x64 guests; needs
+                         'pip install memprocfs', python from \$PYTHON or python3)
       --kubeconfig FILE  kubeconfig (default: \$KUBECONFIG, else kubectl's default ~/.kube/config)
       --secure           verify the API server TLS cert (default: skip, lab uses self-signed)
   -h, --help
 USAGE
 }
 
-NS=default OUT=. SC="" SIZE="" KEEP=0 INSECURE=1
+NS=default OUT=. SC="" SIZE="" KEEP=0 INSECURE=1 WINDBG=0
 KUBECONFIG="${KUBECONFIG:-}"  # empty: kubectl/virtctl use their own default (~/.kube/config)
 VM=""
 while [[ $# -gt 0 ]]; do
@@ -32,6 +34,7 @@ while [[ $# -gt 0 ]]; do
     -s|--storage-class) SC=$2; shift 2;;
     -z|--size) SIZE=$2; shift 2;;
     -k|--keep) KEEP=1; shift;;
+    --windbg) WINDBG=1; shift;;
     --kubeconfig) KUBECONFIG=$2; shift 2;;
     --secure) INSECURE=0; shift;;
     -h|--help) usage; exit 0;;
@@ -48,6 +51,14 @@ V=(virtctl -n "$NS")
 for t in kubectl virtctl gzip; do command -v "$t" >/dev/null || { echo "missing: $t" >&2; exit 1; }; done
 
 log() { printf '==> %s\n' "$*" >&2; }
+
+# Fail before dumping if the converter can't run.
+PY=${PYTHON:-python3}
+CONVERT="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/elf2windmp.py"
+if (( WINDBG )); then
+  [[ -f $CONVERT ]] || { echo "missing $CONVERT" >&2; exit 1; }
+  "$PY" -c 'import memprocfs' 2>/dev/null || { echo "--windbg needs memprocfs for $PY (pip install memprocfs, or set PYTHON=/path/to/venv/bin/python)" >&2; exit 1; }
+fi
 
 PHASE=$("${K[@]}" get vmi "$VM" -o jsonpath='{.status.phase}' 2>/dev/null || true)
 [[ $PHASE == Running ]] || { echo "VM $NS/$VM is not running (phase: '${PHASE:-none}')" >&2; exit 1; }
@@ -164,4 +175,13 @@ mv "$DEST.part" "$DEST"
 MAGIC=$( (gzip -dc "$DEST" | head -c 4 | od -An -c | tr -d ' ') || true )  # SIGPIPE from head is expected
 [[ $MAGIC == '177ELF' || $MAGIC == '\177ELF' ]] || log "warning: unexpected header '$MAGIC' (expected ELF core)"
 log "done: $(ls -lh "$DEST" | awk '{print $5}')  $DEST"
-echo "$DEST"
+if (( WINDBG )); then
+  DMP="${DEST%.memory.dump.gz}.win.dmp"
+  log "converting to WinDbg format: $DMP"
+  "$PY" "$CONVERT" "$DEST" "$DMP" >&2 || { rm -f "$DMP"; echo "conversion failed (the ELF dump is kept: $DEST)" >&2; exit 1; }
+  log "done: $(du -h "$DMP" | cut -f1) on disk  $DMP"
+  echo "$DEST"
+  echo "$DMP"
+else
+  echo "$DEST"
+fi

@@ -40,6 +40,7 @@ If your Harvester/KubeVirt has the gate enabled, plain `virtctl memory-dump get 
 | `-s`, `--storage-class SC` | Storage class for the dump PVC | cluster default |
 | `-z`, `--size SIZE` | PVC size, e.g. `16Gi` | 2x guest memory + 2Gi |
 | `-k`, `--keep` | Keep the PVC and its association after download | off (cleaned up) |
+| `--windbg` | After the download, also convert the dump to a WinDbg `MEMORY.DMP` with `elf2windmp.py` (needs `memprocfs`; set `PYTHON=` to use a venv). Checked before dumping, so a missing dependency fails fast. The ELF dump is kept. | off |
 | `--kubeconfig FILE` | Kubeconfig to use | `$KUBECONFIG`, else `~/.kube/config` |
 | `--secure` | Verify the API server TLS certificate | off (lab uses a self-signed cert) |
 | `-h`, `--help` | Show usage | |
@@ -52,6 +53,9 @@ WinDbg does not open the QEMU ELF core. `elf2windmp.py` converts it to a Windows
 python3 -m venv .venv && .venv/bin/pip install memprocfs
 .venv/bin/python elf2windmp.py dumps/<dump>.memory.dump.gz out.dmp   # ~30-40 s for 6 GiB
 ```
+
+Or let the dump script do it in one go: `PYTHON=.venv/bin/python ./vm-memdump.sh --windbg -n labs -o ./dumps <vm>`
+writes `<dump>.memory.dump.gz` and `<dump>.win.dmp` (the script prints both paths, `.win.dmp` last).
 
 It writes the ELF LOAD segments to a sparse raw image and has MemProcFS generate the crash dump. That
 decodes the `KdDebuggerDataBlock` (its `KDBG` tag is encoded in raw memory) and fills the header.
