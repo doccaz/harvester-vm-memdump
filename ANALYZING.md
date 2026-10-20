@@ -132,6 +132,7 @@ Verified (2026-10-19):
 | VM | Checks | Result |
 |----|--------|--------|
 | `labs/windows-server-2022` (idle, 6 GiB) | header, Volatility 3, MemProcFS, **WinDbg 10.0.22621.755** | header `PAGEDU64`, build 20348, 4 CPUs, DTB `0x1aa000`; Volatility reads it as `WindowsCrashDump64Layer` with the same kernel base and build as the ELF run; WinDbg: "Kernel Complete Dump File: Full address space is available", kernel symbols and unloaded module list load, `lm` lists modules, `!process 0 0` walks the process list (System DirBase `001aa000`, smss, csrss, sppsvc, ...) |
+| `labs/windows-server-2022` (running 2h50, 6 GiB), made by `vm-memdump.sh --windbg` in one run | header, Volatility 3, **WinDbg 10.0.22621.755** | `PAGEDU64`, build 20348, 4 CPUs, `KDBG` tag decoded; `windows.info` and `windows.pslist` work; WinDbg: "Kernel Complete Dump File", kernel symbols load (`nt` with PDB), `lm` lists modules. `!process 0 0` not run on this one. |
 | `labs/winsrv2022` (running, 5.75 GiB) | header, Volatility 3, MemProcFS | `PAGEDU64`, build 20348, 4 CPUs, DTB `0x1aa000`, `KDBG` tag decoded; `windows.info` and `windows.pslist` work (System, smss, csrss, wininit, services, lsass, svchost, ...). Not opened in WinDbg. |
 
 Notes:

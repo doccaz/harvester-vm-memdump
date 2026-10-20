@@ -99,6 +99,7 @@ All on Harvester 1.8.2.
 |-------|-----|------|-----|----------|
 | Ubuntu 24.04 (`labs/ubuntu-2404`) | 1 GiB | 182 MB gz | 4Gi | `crash`: `sys`, `log`, `bt`, `ps`, `kmem -i` |
 | Windows Server 2022 (`labs/windows-server-2022`) | 6 GiB | 551 MB gz | 14Gi | Volatility 3; `elf2windmp.py` + WinDbg (`lm`, `!process 0 0`) |
+| Windows Server 2022 (`labs/windows-server-2022`, running 2h50) | 6 GiB | 2.6 GB gz | 14Gi | `vm-memdump.sh --windbg` end to end; WinDbg (`lm`) and Volatility 3 |
 | Windows Server 2022 (`labs/winsrv2022`, running) | 5.75 GiB | 3.3 GB gz | 14Gi | Volatility 3 (`windows.info`, `pslist`); `elf2windmp.py` header and KDBG checked, not opened in WinDbg |
 
 Not tested: `!analyze -v` on a converted dump, Windows guests other than Server 2022 build 20348, `--keep`, reusing an already-associated PVC through the script, non-default storage classes.
