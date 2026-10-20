@@ -16,15 +16,13 @@ Options:
   -s, --storage-class SC storage class for the dump PVC (default: cluster default)
   -z, --size SIZE        PVC size, e.g. 16Gi (default: 2x guest memory + 2Gi)
   -k, --keep             keep the PVC/association after download
-      --format FMT       elf (default, via KubeVirt) or win-dmp (WinDbg MEMORY.DMP, via virsh in the
-                         virt-launcher pod; experimental, Windows x64 guests only)
       --kubeconfig FILE  kubeconfig (default: \$KUBECONFIG, else kubectl's default ~/.kube/config)
       --secure           verify the API server TLS cert (default: skip, lab uses self-signed)
   -h, --help
 USAGE
 }
 
-NS=default OUT=. SC="" SIZE="" KEEP=0 INSECURE=1 FORMAT=elf
+NS=default OUT=. SC="" SIZE="" KEEP=0 INSECURE=1
 KUBECONFIG="${KUBECONFIG:-}"  # empty: kubectl/virtctl use their own default (~/.kube/config)
 VM=""
 while [[ $# -gt 0 ]]; do
@@ -34,7 +32,6 @@ while [[ $# -gt 0 ]]; do
     -s|--storage-class) SC=$2; shift 2;;
     -z|--size) SIZE=$2; shift 2;;
     -k|--keep) KEEP=1; shift;;
-    --format) FORMAT=$2; shift 2;;
     --kubeconfig) KUBECONFIG=$2; shift 2;;
     --secure) INSECURE=0; shift;;
     -h|--help) usage; exit 0;;
@@ -43,7 +40,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 [[ -n $VM ]] || { usage >&2; exit 2; }
-[[ $FORMAT == elf || $FORMAT == win-dmp ]] || { echo "--format must be elf or win-dmp" >&2; exit 2; }
 [[ -z $KUBECONFIG ]] || export KUBECONFIG
 
 K=(kubectl -n "$NS")
@@ -56,41 +52,6 @@ log() { printf '==> %s\n' "$*" >&2; }
 PHASE=$("${K[@]}" get vmi "$VM" -o jsonpath='{.status.phase}' 2>/dev/null || true)
 [[ $PHASE == Running ]] || { echo "VM $NS/$VM is not running (phase: '${PHASE:-none}')" >&2; exit 1; }
 NODE=$("${K[@]}" get vmi "$VM" -o jsonpath='{.status.nodeName}')
-
-# --format win-dmp: skip KubeVirt's memory-dump API (it hardcodes the ELF/raw format) and ask
-# libvirt for a Windows crash dump directly, from inside the virt-launcher pod.
-if [[ $FORMAT == win-dmp ]]; then
-  UID_=$("${K[@]}" get vmi "$VM" -o jsonpath='{.metadata.uid}')
-  LPOD=$("${K[@]}" get pod -l "kubevirt.io=virt-launcher,kubevirt.io/created-by=$UID_" \
-    -o jsonpath='{.items[0].metadata.name}')
-  [[ -n $LPOD ]] || { echo "virt-launcher pod for $NS/$VM not found" >&2; exit 1; }
-  DOM="${NS}_${VM}"
-  REMOTE="/var/run/kubevirt/$VM-$(date +%Y%m%d-%H%M%S).dmp"
-  mkdir -p "$OUT"
-  DEST="$OUT/$VM-$(date +%Y%m%d-%H%M%S).win-dmp.gz"
-  trap '"${K[@]}" exec "$LPOD" -c compute -- rm -f "$REMOTE" >/dev/null 2>&1 || true' EXIT
-  log "virsh dump --memory-only --format win-dmp in $LPOD (needs ~guest RAM free in the pod's /var/run/kubevirt)"
-  # Plain virsh connects in current virt-launchers; only fall back to other URIs on a connection error.
-  ok=0
-  for uri in "" "qemu+unix:///session?socket=/var/run/kubevirt-private/libvirt/virtqemud-sock" "qemu:///system"; do
-    if OUTP=$("${K[@]}" exec "$LPOD" -c compute -- virsh ${uri:+-c "$uri"} dump "$DOM" "$REMOTE" \
-        --memory-only --format win-dmp 2>&1); then ok=1; break; fi
-    echo "$OUTP" >&2
-    [[ $OUTP == *"failed to connect to the hypervisor"* ]] || break
-  done
-  (( ok )) || { echo "virsh dump failed. win-dmp needs a Windows x64 guest with the QEMU vmcoreinfo device (not exposed by KubeVirt by default) and the fw_cfg guest driver (virtio-win)." >&2; exit 1; }
-  log "downloading to $DEST"
-  if ! "${K[@]}" exec "$LPOD" -c compute -- gzip -c "$REMOTE" > "$DEST.part"; then
-    rm -f "$DEST.part"; echo "download failed" >&2; exit 1
-  fi
-  gzip -t "$DEST.part"
-  mv "$DEST.part" "$DEST"
-  MAGIC=$( (gzip -dc "$DEST" | head -c 8) || true )
-  [[ $MAGIC == PAGEDU64 ]] || log "warning: unexpected header '$MAGIC' (expected PAGEDU64)"
-  log "done: $(ls -lh "$DEST" | awk '{print $5}')  $DEST"
-  echo "$DEST"
-  exit 0
-fi
 
 POD="memdump-reader-$VM"
 POD=${POD:0:63}

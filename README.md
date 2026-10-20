@@ -40,7 +40,6 @@ If your Harvester/KubeVirt has the gate enabled, plain `virtctl memory-dump get 
 | `-s`, `--storage-class SC` | Storage class for the dump PVC | cluster default |
 | `-z`, `--size SIZE` | PVC size, e.g. `16Gi` | 2x guest memory + 2Gi |
 | `-k`, `--keep` | Keep the PVC and its association after download | off (cleaned up) |
-| `--format FMT` | `elf` (via KubeVirt) or `win-dmp` (experimental, does not work on stock Harvester; use `elf2windmp.py` instead, see below) | `elf` |
 | `--kubeconfig FILE` | Kubeconfig to use | `$KUBECONFIG`, else `~/.kube/config` |
 | `--secure` | Verify the API server TLS certificate | off (lab uses a self-signed cert) |
 | `-h`, `--help` | Show usage | |
@@ -64,12 +63,11 @@ decodes the `KdDebuggerDataBlock` (its `KDBG` tag is encoded in raw memory) and 
   not for BSOD analysis. For a real BSOD, have the guest write its own complete `MEMORY.DMP`.
 - Verified on two VMs, see [Tested](#tested) and [ANALYZING.md](ANALYZING.md).
 
-### `--format win-dmp` (experimental, does not work on stock Harvester)
-KubeVirt's memory-dump API hardcodes the ELF/raw format, so `vm-memdump.sh --format win-dmp` skips it
-and runs `virsh dump --memory-only --format win-dmp` inside the `virt-launcher` pod, then streams the
-file out as `<vm>-<timestamp>.win-dmp.gz`. On Harvester 1.8.2 plain `virsh` connects, but QEMU fails with
+### Why not have QEMU write the Windows format directly?
+`virsh dump --format win-dmp` would do it, but KubeVirt's memory-dump API hardcodes the ELF/raw format.
+Running `virsh dump` by hand inside the `virt-launcher` pod was tried on Harvester 1.8.2 and fails with
 `win-dump: invalid vmcoreinfo note size`: the VM's libvirt domain has no `vmcoreinfo` device and KubeVirt
-does not add one. (The guest already has the virtio-win `fwcfg` driver.) Use `elf2windmp.py` instead.
+does not add one. So the dump is converted afterwards with `elf2windmp.py`.
 
 ## Requirements
 - `kubectl`, `virtctl` (>= 1.7) and `gzip` on the machine running the script.

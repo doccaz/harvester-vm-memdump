@@ -144,5 +144,5 @@ Notes:
   (`0x80073CF9` / `0x8007007F`). Use another machine, or the classic debuggers from the Windows SDK.
   On Server Core there is no GUI; `kd.exe -z <dump>` works.
 - Not tried: `!analyze -v`, Windows guests other than Server 2022 build 20348.
-- `vm-memdump.sh --format win-dmp` (QEMU writing the Windows format itself) does not work on stock
-  Harvester: no `vmcoreinfo` device in the domain, see the README.
+- Having QEMU write the Windows format itself (`virsh dump --format win-dmp` in the `virt-launcher` pod)
+  does not work on stock Harvester: no `vmcoreinfo` device in the domain, see the README.
